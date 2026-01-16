@@ -1,12 +1,13 @@
+import os
 import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# ---------------- CONFIGURAZIONE API ----------------
-VISUALCROSSING_KEY = "MDD4NPYGYTHY92TQNNZPDJFJH"
-WEATHERBIT_KEY = "52f55430d57d474881c455348151f401"
-TOMORROW_KEY = "IPAEGNhmJ5S2GsScmY9hkwohFm8ChdTP"
-TELEGRAM_TOKEN = "8524080997:AAE3Bj3MTJ2GKvWjlJO0Mb-S6LwLpM22l0c"
+# ---------------- API KEYS DALLE VARIABILI AMBIENTE ----------------
+TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
+VISUALCROSSING_KEY = os.environ["VISUALCROSSING_KEY"]
+WEATHERBIT_KEY = os.environ["WEATHERBIT_KEY"]
+TOMORROW_KEY = os.environ["TOMORROW_KEY"]
 
 # ---------------- FUNZIONI API ----------------
 def open_meteo_forecast(lat, lon, days):
@@ -50,6 +51,13 @@ def geocode_city(city_name):
     else:
         return None, None
 
+# ---------------- FUNZIONE PER IL GRAFICO ORIZZONTALE ----------------
+def make_bar(temp, min_val=0, max_val=40, width=20):
+    if temp is None:
+        return "N/A"
+    scaled = int((temp - min_val) / (max_val - min_val) * width)
+    return "█" * max(1, scaled)
+
 # ---------------- FUNZIONE DI RISPOSTA ----------------
 async def forecast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -59,7 +67,6 @@ async def forecast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         city_name = " ".join(context.args[:-1])
         days = int(context.args[-1])
-
         if days < 1 or days > 10:
             await update.message.reply_text("Il numero di giorni deve essere tra 1 e 10.")
             return
@@ -74,7 +81,7 @@ async def forecast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         wb_temp, wb_dates = weatherbit_forecast(lat, lon, days)
         tm_temp, tm_dates = tomorrow_forecast(lat, lon)
 
-        message = f"🌤️ Previsioni temperatura massima per {city_name} (prossimi {days} giorni):\n\n"
+        message = f"🌤️ Previsioni temperature massime per {city_name} (prossimi {days} giorni):\n\n"
 
         for i in range(days):
             temps = [om_temp[i], vc_temp[i], wb_temp[i], tm_temp[i]]
@@ -83,11 +90,11 @@ async def forecast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             min_temp = min(valid_temps) if valid_temps else None
             max_temp = max(valid_temps) if valid_temps else None
 
-            message += f"📅 {om_dates[i]}:\n"
-            message += f"  🌐 Open-Meteo: {om_temp[i]}°C\n"
-            message += f"  🌐 Visual Crossing: {vc_temp[i]}°C\n"
-            message += f"  🌐 Weatherbit: {wb_temp[i]}°C\n"
-            message += f"  🌐 Tomorrow.io: {tm_temp[i]}°C\n"
+            message += f"📅 {om_dates[i]}\n"
+            message += f"  Open-Meteo:       {om_temp[i]}°C  | {make_bar(om_temp[i])}\n"
+            message += f"  Visual Crossing:  {vc_temp[i]}°C  | {make_bar(vc_temp[i])}\n"
+            message += f"  Weatherbit:       {wb_temp[i]}°C  | {make_bar(wb_temp[i])}\n"
+            message += f"  Tomorrow.io:      {tm_temp[i]}°C  | {make_bar(tm_temp[i])}\n"
             message += f"  ➤ Media: {avg:.1f}°C, Range: {min_temp}-{max_temp}°C\n\n"
 
         await update.message.reply_text(message)
